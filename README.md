@@ -20,6 +20,8 @@ Downloads are saved in the browser's Downloads folder under `LibRead Downloader/
 
 The extension has required access only to HTTPS pages and media on `libread.com` and its subdomains. If a cover or chapter image is hosted on another HTTPS domain, it asks you before requesting access to that specific host; it does not request blanket access to all sites. It does not send login cookies or bypass paid/locked access. If a chapter page has no reader article, it is reported as skipped. Only download material you are authorized to access.
 
+If a fetch fails, reload the unpacked extension at `chrome://extensions` after updates and check its **Site access** setting includes `libread.com`. The extension uses the same LibRead referrer as the Python downloader; if the site still blocks the browser request, the progress log now includes a more specific network/site-access error.
+
 ## Python app
 
 Python 3.8+ and the packages in `requirements.txt` are needed. The launch script creates a virtual environment and installs them on first run:
