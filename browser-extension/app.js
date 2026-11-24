@@ -852,7 +852,12 @@ async function requestBytes(url, settings, signal = null, onProgress = null, onR
         method: "GET",
         credentials: "omit",
         cache: "no-store",
-        headers: { Accept: "text/html,application/xhtml+xml,image/avif,image/webp,image/apng,*/*;q=0.8" },
+        referrer: `${SITE_ORIGIN}/`,
+        referrerPolicy: "strict-origin-when-cross-origin",
+        headers: {
+          Accept: "text/html,application/xhtml+xml,image/avif,image/webp,image/apng,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(`LibRead returned HTTP ${response.status}.`);
@@ -888,7 +893,13 @@ async function requestBytes(url, settings, signal = null, onProgress = null, onR
       return { bytes, contentType, totalBytes: total || loaded };
     } catch (error) {
       if (signal?.aborted) throw makeAbortError();
-      lastError = timedOut ? new Error(`Request timed out after ${timeoutSeconds} seconds.`) : error;
+      if (timedOut) {
+        lastError = new Error(`Request timed out after ${timeoutSeconds} seconds.`);
+      } else if (error instanceof TypeError && /failed to fetch|networkerror/i.test(error.message)) {
+        lastError = new Error(`The browser couldn't reach ${remote.hostname}. Check the extension's site access for libread.com; LibRead may also be blocking extension requests. (${error.message})`);
+      } else {
+        lastError = error;
+      }
       if (attempt < attempts) {
         onRetry?.(`Retry ${attempt}/${attempts - 1} · ${lastError.message}`);
         await sleep(350 * attempt, signal);
