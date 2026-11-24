@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#11140f">
+  <title>LibRead Downloader</title>
+  <link rel="stylesheet" href="app.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <div class="page-frame">
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="LibRead Downloader home">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span>LIBREAD <b>DOWNLOADER</b></span>
+      </a>
+      <div class="topbar-right">
+        <span class="browser-tag"><i></i> Browser extension</span>
+        <button class="button button-quiet button-small" id="open-downloads" type="button">
+          <span aria-hidden="true">↗</span> Downloads
+        </button>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="page-title">
+        <div class="eyebrow"><span class="eyebrow-line"></span> YOUR LIBREAD READING KIT</div>
+        <div class="hero-row">
+          <div>
+            <h1 id="page-title">Take the story<br><em>with you.</em></h1>
+            <p class="hero-copy">Save chapters for offline reading. Choose a series, pick your chapters, and keep a copy on your device.</p>
+          </div>
+          <div class="hero-stamp" aria-hidden="true">
+            <span>READ</span>
+            <strong>OFF<br>LINE</strong>
+            <span class="stamp-star">✳</span>
+          </div>
+        </div>
+
+        <form class="series-form" id="series-form" novalidate>
+          <label class="field-label" for="series-url">Series URL or slug</label>
+          <div class="input-row">
+            <span class="input-icon" aria-hidden="true">⌕</span>
+            <input id="series-url" name="url" type="url" autocomplete="url" spellcheck="false"
+                   placeholder="https://libread.com/libread/series-name" aria-describedby="url-help">
+            <button class="button button-primary" id="load-series" type="submit">
+              <span>Load series</span><span class="button-arrow" aria-hidden="true">→</span>
+            </button>
+          </div>
+          <p class="field-help" id="url-help">Paste a LibRead series link, or enter its slug. Clicking the extension on a series page fills this in for you.</p>
+        </form>
+      </section>
+
+      <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
+      <button class="button button-quiet permission-button" id="grant-media-access" type="button" hidden>Allow media host</button>
+
+      <section class="workspace" id="workspace" hidden aria-label="Series and download controls">
+        <div class="main-column">
+          <section class="panel series-panel" aria-labelledby="series-title">
+            <div class="series-cover-wrap">
+              <img id="series-cover" class="series-cover" alt="Series cover" hidden>
+              <div id="cover-placeholder" class="cover-placeholder" aria-hidden="true"><span>LR</span></div>
+            </div>
+            <div class="series-details">
+              <div class="eyebrow small-eyebrow"><span class="eyebrow-line"></span> SELECTED SERIES</div>
+              <h2 id="series-title">Series title</h2>
+              <p class="series-author" id="series-author" hidden></p>
+              <div class="stat-row" id="series-stats"></div>
+            </div>
+            <button class="button button-quiet button-small change-series" id="change-series" type="button">Change</button>
+          </section>
+
+          <section class="panel chapter-panel" aria-labelledby="chapters-heading">
+            <div class="panel-heading chapter-heading">
+              <div>
+                <div class="eyebrow small-eyebrow"><span class="eyebrow-line"></span> THE READING LIST</div>
+                <h2 id="chapters-heading">Choose chapters</h2>
+              </div>
+              <span class="selection-count" id="selection-count" aria-live="polite">0 selected</span>
+            </div>
+
+            <div class="chapter-tools">
+              <label class="search-box" for="chapter-search">
+                <span aria-hidden="true">⌕</span>
+                <input id="chapter-search" type="search" placeholder="Find a chapter" autocomplete="off">
+              </label>
+              <button class="text-button" id="select-all" type="button">Select all</button>
+              <span class="tool-divider" aria-hidden="true"></span>
+              <button class="text-button" id="clear-selection" type="button">Clear</button>
+            </div>
+
+            <div class="range-tools">
+              <label for="chapter-range">Select a range</label>
+              <div class="range-controls">
+                <input id="chapter-range" type="text" inputmode="numeric" placeholder="e.g. 1-12 or all" autocomplete="off">
+                <button class="button button-quiet button-small" id="apply-range" type="button">Apply</button>
+              </div>
+              <span class="range-help">Numbers follow the accessible chapter order.</span>
+            </div>
+
+            <div class="chapter-list" id="chapter-list" role="list" aria-label="Series chapters"></div>
+            <p class="empty-search" id="empty-search" hidden>No chapters match that search.</p>
+            <p class="locked-note" id="locked-note" hidden>Locked chapters are shown for reference but can't be selected. Chapters that require access are skipped when detected.</p>
+          </section>
+        </div>
+
+        <aside class="side-column" aria-label="Download options and progress">
+          <section class="panel download-panel" aria-labelledby="download-heading">
+            <div class="eyebrow small-eyebrow"><span class="eyebrow-line"></span> SAVE TO DEVICE</div>
+            <h2 id="download-heading">Download setup</h2>
+            <p class="download-summary" id="download-summary">Select one or more accessible chapters to get started.</p>
+
+            <label class="option-row" for="save-cover">
+              <span class="option-check"><input id="save-cover" type="checkbox" checked><span></span></span>
+              <span class="option-copy"><strong>Save cover image</strong><small>Keep the series artwork with your files.</small></span>
+            </label>
+            <label class="option-row" for="build-epub">
+              <span class="option-check"><input id="build-epub" type="checkbox" checked><span></span></span>
+              <span class="option-copy"><strong>Build an EPUB</strong><small>Create an ebook from downloaded chapters.</small></span>
+            </label>
+
+            <div class="folder-setting">
+              <label for="output-folder">Downloads subfolder</label>
+              <input id="output-folder" type="text" value="LibRead Downloader" autocomplete="off" spellcheck="false">
+              <span>Relative to your browser's Downloads folder.</span>
+            </div>
+            <div class="advanced-heading">REQUEST SETTINGS</div>
+            <div class="settings-grid">
+              <label for="delay-seconds">Chapter delay <span>seconds</span>
+                <input id="delay-seconds" type="number" min="0" max="60" step="0.1" value="0.3">
+              </label>
+              <label for="timeout-seconds">Timeout <span>seconds</span>
+                <input id="timeout-seconds" type="number" min="1" max="300" step="1" value="30">
+              </label>
+              <label for="retry-count">Attempts <span>total</span>
+                <input id="retry-count" type="number" min="1" max="8" step="1" value="3">
+              </label>
+            </div>
+
+            <button class="button button-primary download-button" id="download-selected" type="button" disabled>
+              <span>Download selected</span><span class="button-arrow" aria-hidden="true">→</span>
+            </button>
+            <button class="button button-stop" id="stop-download" type="button" hidden>Stop download</button>
+            <p class="download-destination"><span aria-hidden="true">▱</span> Saved to your browser's Downloads folder<br><b id="download-root-label">LibRead Downloader / series title</b></p>
+          </section>
+
+          <section class="panel progress-panel" id="progress-panel" aria-labelledby="progress-heading" hidden>
+            <div class="progress-topline">
+              <div>
+                <div class="eyebrow small-eyebrow"><span class="eyebrow-line"></span> DOWNLOAD ACTIVITY</div>
+                <h2 id="progress-heading">Progress</h2>
+              </div>
+              <span class="status-badge" id="job-status" data-state="idle">Ready</span>
+            </div>
+            <p class="progress-label" id="progress-label">Waiting to start</p>
+            <div class="progress-track" role="progressbar" aria-label="Download progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-track">
+              <span id="progress-bar"></span>
+            </div>
+            <div class="progress-meta"><span id="progress-percent">0%</span><span id="progress-count">0 / 0 chapters</span></div>
+            <ol class="activity-log" id="activity-log" aria-label="Download log" aria-live="polite"></ol>
+          </section>
+
+          <p class="privacy-note"><span aria-hidden="true">◈</span> Runs in this browser. Files go straight to Downloads; no account or server is used. Keep this tab open while a job runs.</p>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Made for your offline reading shelf.</span>
+      <span>Only download content you can access.</span>
+    </footer>
+  </div>
+</body>
+</html>
