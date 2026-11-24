@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "LibRead Downloader",
+  "version": "1.0.0",
+  "description": "Save accessible LibRead chapters, images, and EPUBs from your browser.",
+  "minimum_chrome_version": "109",
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://libread.com/*",
+    "https://*.libread.com/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*"
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Open LibRead Downloader",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    }
+  }
+}
