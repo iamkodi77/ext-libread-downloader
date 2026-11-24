@@ -1,10 +1,10 @@
-const LIBREAD_HOST = /(^|\.)libread\.com$/i;
+const SUPPORTED_SITE_HOST = /(^|\.)(?:libread|freewebnovel)\.com$/i;
 
 function seriesPageFromTab(tabUrl) {
   if (!tabUrl) return "";
   try {
     const url = new URL(tabUrl);
-    if (url.protocol !== "https:" || !LIBREAD_HOST.test(url.hostname)) return "";
+    if (url.protocol !== "https:" || !SUPPORTED_SITE_HOST.test(url.hostname)) return "";
     if (!/^\/libread\/[^/]+(?:\/|$)/i.test(url.pathname)) return "";
     return url.href;
   } catch {

@@ -18,9 +18,9 @@ The extension includes the same practical download tools as the Python GUI: load
 
 Downloads are saved in the browser's Downloads folder under `LibRead Downloader/<series>/` by default; the extension lets you choose another relative subfolder. Browser settings may ask you to allow multiple downloads the first time. Keep the extension tab open while a job runs. The extension uses the browser Downloads API and keeps its data local to the browser.
 
-The extension has required access only to HTTPS pages and media on `libread.com` and its subdomains. If a cover or chapter image is hosted on another HTTPS domain, it asks you before requesting access to that specific host; it does not request blanket access to all sites. It does not send login cookies or bypass paid/locked access. If a chapter page has no reader article, it is reported as skipped. Only download material you are authorized to access.
+The extension has required access only to pages and media on `libread.com`, `freewebnovel.com`, and their subdomains. If a cover or chapter image is hosted on another HTTPS domain, it asks you before requesting access to that specific host; it does not request blanket access to all sites. It does not send login cookies or bypass paid/locked access. If a chapter page has no reader article, it is reported as skipped. Only download material you are authorized to access.
 
-If a fetch fails, reload the unpacked extension at `chrome://extensions` after updates and check its **Site access** setting includes `libread.com`. The extension uses the same LibRead referrer as the Python downloader; if the site still blocks the browser request, the progress log now includes a more specific network/site-access error.
+If a fetch fails, reload the unpacked extension at `chrome://extensions` after updates and check its **Site access** setting includes `libread.com` and `freewebnovel.com`. The extension uses the same LibRead referrer as the Python downloader; if the site still blocks the browser request, the progress log now includes a more specific network/site-access error.
 
 ## Python app
 
