@@ -83,11 +83,12 @@ async function initialize() {
   if (globalThis.chrome?.storage?.local) {
     try {
       const saved = await chrome.storage.local.get([
-        "lastUrl", "saveCover", "buildEpub", "delaySeconds", "timeoutSeconds", "retryCount", "outputFolder",
+        "lastUrl", "saveCover", "buildEpub", "epubOnly", "delaySeconds", "timeoutSeconds", "retryCount", "outputFolder",
       ]);
       if (saved.saveCover === false) $("save-cover").checked = false;
       if (typeof saved.outputFolder === "string") $("output-folder").value = saved.outputFolder;
       if (saved.buildEpub === false) $("build-epub").checked = false;
+      if (saved.epubOnly === false) $("epub-only").checked = false;
       if (Number.isFinite(saved.delaySeconds)) $("delay-seconds").value = String(saved.delaySeconds);
       if (Number.isFinite(saved.timeoutSeconds)) $("timeout-seconds").value = String(saved.timeoutSeconds);
       if (Number.isFinite(saved.retryCount)) $("retry-count").value = String(saved.retryCount);
@@ -98,10 +99,28 @@ async function initialize() {
   } else {
     ui.url.value = queryUrl || "";
   }
-  ["save-cover", "build-epub", "delay-seconds", "timeout-seconds", "retry-count", "output-folder"].forEach((id) => {
+  syncEpubOnlyOption();
+  ["save-cover", "delay-seconds", "timeout-seconds", "retry-count", "output-folder"].forEach((id) => {
     $(id).addEventListener("change", saveSettings);
   });
+  $("epub-only").addEventListener("change", () => {
+    updateSelectionView();
+    void saveSettings();
+  });
+  $("build-epub").addEventListener("change", () => {
+    syncEpubOnlyOption();
+    updateSelectionView();
+    void saveSettings();
+  });
   if (queryUrl) void loadSeries();
+}
+
+function syncEpubOnlyOption() {
+  const buildEnabled = $("build-epub").checked;
+  const epubOnly = $("epub-only");
+  epubOnly.disabled = !buildEnabled;
+  if (!buildEnabled) epubOnly.checked = false;
+  epubOnly.closest(".option-row")?.classList.toggle("disabled-option", !buildEnabled);
 }
 
 async function saveSettings() {
@@ -112,6 +131,7 @@ async function saveSettings() {
       lastUrl: ui.url.value.trim(),
       saveCover: $("save-cover").checked,
       buildEpub: $("build-epub").checked,
+      epubOnly: $("epub-only").checked,
       delaySeconds: settings.delaySeconds,
       timeoutSeconds: settings.timeoutSeconds,
       retryCount: settings.retryCount,
@@ -492,12 +512,13 @@ function renderChapterList() {
 function updateSelectionView() {
   const selectedCount = state.selected.size;
   const accessibleCount = state.series?.chapters.filter((chapter) => !chapter.locked).length || 0;
+  const epubOnly = $("build-epub").checked && $("epub-only").checked;
   ui.selectionCount.textContent = `${selectedCount} selected`;
   ui.downloadSummary.textContent = selectedCount
-    ? `${selectedCount} chapter${selectedCount === 1 ? "" : "s"} selected · ${accessibleCount} accessible in this series.`
+    ? `${selectedCount} chapter${selectedCount === 1 ? "" : "s"} selected · ${accessibleCount} accessible${epubOnly ? " · Output: one EPUB file." : " in this series."}`
     : `Select one or more of the ${accessibleCount} accessible chapters to get started.`;
   ui.downloadButton.querySelector("span:first-child").textContent = selectedCount
-    ? `Download ${selectedCount} chapter${selectedCount === 1 ? "" : "s"}`
+    ? `Download ${selectedCount} chapter${selectedCount === 1 ? "" : "s"}${epubOnly ? " as EPUB" : ""}`
     : "Download selected";
   ui.downloadButton.disabled = selectedCount === 0 || state.jobRunning;
   ui.loadButton.disabled = state.jobRunning;
@@ -561,6 +582,7 @@ async function startDownload() {
   const settings = readSettings();
   const saveCover = $("save-cover").checked && Boolean(state.series.coverUrl);
   const makeEpub = $("build-epub").checked;
+  const epubOnly = makeEpub && $("epub-only").checked;
   const chapterFolder = sanitizeFilename(state.series.title);
   const outputFolder = normalizeOutputFolder($("output-folder").value);
   const controller = new AbortController();
@@ -584,6 +606,7 @@ async function startDownload() {
   let successCount = 0;
   const successfulChapters = [];
   let coverForEpub = null;
+  let epubSaved = false;
 
   const refreshProgress = (fraction, label) => {
     const percent = totalUnits > 0 ? ((completedUnits + Math.max(0, Math.min(1, fraction))) / totalUnits) * 100 : 0;
@@ -594,22 +617,26 @@ async function startDownload() {
     logMessage(`Preparing ${selected.length} chapter${selected.length === 1 ? "" : "s"} from “${state.series.title}”.`);
     if (saveCover) {
       try {
-        refreshProgress(0, "Saving series cover…");
+        refreshProgress(0, epubOnly ? "Loading cover for EPUB…" : "Saving series cover…");
         const asset = state.coverAsset || await requestBytes(state.series.coverUrl, settings, controller.signal);
         if (!asset) throw new Error("The cover image could not be read.");
         coverForEpub = normalizeAsset(asset, state.series.coverUrl);
-        await saveBytesAsDownload(
-          coverForEpub.bytes,
-          coverForEpub.contentType,
-          `${baseDownloadFolder(chapterFolder, outputFolder)}/cover${coverForEpub.extension}`,
-          controller.signal,
-        );
-        logMessage("Series cover saved.", "success");
+        if (!epubOnly) {
+          await saveBytesAsDownload(
+            coverForEpub.bytes,
+            coverForEpub.contentType,
+            `${baseDownloadFolder(chapterFolder, outputFolder)}/cover${coverForEpub.extension}`,
+            controller.signal,
+          );
+          logMessage("Series cover saved.", "success");
+        } else {
+          logMessage("Series cover will be embedded in the EPUB.", "success");
+        }
       } catch (error) {
         if (isAbortError(error, controller.signal)) throw error;
         if (error instanceof HostPermissionRequiredError) showHostPermission(error);
         failureCount += 1;
-        logMessage(`Cover not saved: ${error.message}`, "warn");
+        logMessage(`${epubOnly ? "Cover not included" : "Cover not saved"}: ${error.message}`, "warn");
       }
       completedUnits += 1;
       refreshProgress(0, "Cover step complete");
@@ -630,8 +657,10 @@ async function startDownload() {
         refreshProgress(0.03, `Fetching ${prefix} · ${chapter.title}`);
         const content = await fetchChapterContent(chapter, settings, controller.signal);
         const folder = `${baseDownloadFolder(chapterFolder, outputFolder)}/Chapter ${String(chapterNumber).padStart(3, "0")}`;
-        await saveTextAsDownload(content.html, `${folder}/chapter.html`, controller.signal, "text/html;charset=utf-8");
-        await saveTextAsDownload(content.text, `${folder}/chapter.txt`, controller.signal, "text/plain;charset=utf-8");
+        if (!epubOnly) {
+          await saveTextAsDownload(content.html, `${folder}/chapter.html`, controller.signal, "text/html;charset=utf-8");
+          await saveTextAsDownload(content.text, `${folder}/chapter.txt`, controller.signal, "text/plain;charset=utf-8");
+        }
 
         const savedImages = [];
         for (let imageIndex = 0; imageIndex < content.imageUrls.length; imageIndex += 1) {
@@ -643,7 +672,9 @@ async function startDownload() {
           }, (message) => logMessage(message, "warn"));
           const asset = normalizeAsset(imageResult, imageUrl);
           const imageName = `page_${String(imageIndex + 1).padStart(3, "0")}${asset.extension}`;
-          await saveBytesAsDownload(asset.bytes, asset.contentType, `${folder}/${imageName}`, controller.signal);
+          if (!epubOnly) {
+            await saveBytesAsDownload(asset.bytes, asset.contentType, `${folder}/${imageName}`, controller.signal);
+          }
           savedImages.push({ ...asset, url: imageUrl, name: imageName });
         }
 
@@ -651,12 +682,14 @@ async function startDownload() {
           listIndex: chapterNumber,
           title: chapter.title,
           html: content.html,
-          text: content.text,
           images: savedImages,
         };
         successfulChapters.push(result);
         successCount += 1;
-        logMessage(`${prefix} saved${savedImages.length ? ` · ${savedImages.length} image${savedImages.length === 1 ? "" : "s"}` : " · text"}.`, "success");
+        const chapterResult = savedImages.length ? `${savedImages.length} image${savedImages.length === 1 ? "" : "s"}` : "text";
+        logMessage(epubOnly
+          ? `${prefix} prepared for EPUB · ${chapterResult}.`
+          : `${prefix} saved · ${chapterResult}.`, "success");
       } catch (error) {
         if (isAbortError(error, controller.signal)) throw error;
         if (error instanceof HostPermissionRequiredError) showHostPermission(error);
@@ -675,6 +708,7 @@ async function startDownload() {
           logMessage(`Building ${state.series.title}.epub from ${successfulChapters.length} chapter${successfulChapters.length === 1 ? "" : "s"}…`);
           const epub = buildEpub(successfulChapters, state.series, coverForEpub);
           await saveBlobAsDownload(epub, `${baseDownloadFolder(chapterFolder, outputFolder)}/${sanitizeFilename(state.series.title)}.epub`, controller.signal);
+          epubSaved = true;
           logMessage("EPUB saved.", "success");
         } catch (error) {
           if (isAbortError(error, controller.signal)) throw error;
@@ -688,9 +722,16 @@ async function startDownload() {
     }
 
     if (controller.signal.aborted) throw makeAbortError();
-    const finalMessage = failureCount > 0
-      ? `Finished with ${successCount} chapter${successCount === 1 ? "" : "s"} saved and ${failureCount} issue${failureCount === 1 ? "" : "s"}.`
-      : `Finished · ${successCount} chapter${successCount === 1 ? "" : "s"} saved.`;
+    let finalMessage;
+    if (epubOnly && epubSaved) {
+      finalMessage = `Finished · ${successCount} chapter${successCount === 1 ? "" : "s"} combined in one EPUB${failureCount ? `; ${failureCount} issue${failureCount === 1 ? "" : "s"}` : ""}.`;
+    } else if (epubOnly) {
+      finalMessage = `EPUB-only run produced no file. ${successCount} chapter${successCount === 1 ? " was" : "s were"} processed; check the activity log.`;
+    } else if (failureCount > 0) {
+      finalMessage = `Finished with ${successCount} chapter${successCount === 1 ? "" : "s"} saved and ${failureCount} issue${failureCount === 1 ? "" : "s"}.`;
+    } else {
+      finalMessage = `Finished · ${successCount} chapter${successCount === 1 ? "" : "s"} saved.`;
+    }
     setProgress(100, finalMessage, completedChapters, selected.length);
     setJobStatus(failureCount > 0 ? "warning" : "done", failureCount > 0 ? "Finished with issues" : "Complete");
     logMessage(finalMessage, failureCount > 0 ? "warn" : "success");

@@ -149,6 +149,7 @@ h1 em { color: var(--acid); font-family: Georgia, "Times New Roman", serif; font
 .download-panel h2 { margin-bottom: 6px; }
 .download-summary { min-height: 35px; margin: 0 0 14px; color: var(--muted); font-size: 11px; line-height: 1.55; }
 .option-row { display: flex; align-items: flex-start; gap: 11px; padding: 11px 0; border-top: 1px solid var(--line-soft); cursor: pointer; }
+.option-row.disabled-option { opacity: .45; cursor: not-allowed; }
 .option-check { width: 16px; height: 16px; flex: none; position: relative; margin-top: 2px; }
 .option-check input { appearance: none; position: absolute; inset: 0; margin: 0; width: 16px; height: 16px; border: 1px solid #64715c; border-radius: 4px; background: #151913; cursor: pointer; }
 .option-check input:checked { background: var(--acid); border-color: var(--acid); }

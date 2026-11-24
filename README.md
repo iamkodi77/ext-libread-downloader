@@ -7,7 +7,7 @@ A LibRead chapter downloader with two front ends:
 
 ## Browser extension (Chrome, Edge, Brave)
 
-The extension includes the same practical download tools as the Python GUI: load paginated series listings, search and select individual chapters, select all or a chapter range, save the cover, download text and image-based chapters, build an EPUB, configure request delay/timeout/retries, view live progress and stop a running job.
+The extension includes the same practical download tools as the Python GUI: load paginated series listings, search and select individual chapters, select all or a chapter range, include the cover, download text and image-based chapters, build an EPUB, configure request delay/timeout/retries, view live progress and stop a running job. EPUB-only mode is on by default: the selected chapters are packaged into one EPUB, with no per-chapter HTML, TXT, image, or separate cover downloads.
 
 ### Install locally
 
@@ -16,7 +16,7 @@ The extension includes the same practical download tools as the Python GUI: load
 3. Choose **Load unpacked** and select this repository's `browser-extension` folder.
 4. Click the LibRead Downloader toolbar button. When you are on a LibRead series page, the extension fills in that page automatically; otherwise paste a series URL or enter its slug.
 
-Downloads are saved in the browser's Downloads folder under `LibRead Downloader/<series>/` by default; the extension lets you choose another relative subfolder. Browser settings may ask you to allow multiple downloads the first time. Keep the extension tab open while a job runs. The extension uses the browser Downloads API and keeps its data local to the browser.
+The single EPUB is saved in the browser's Downloads folder under `LibRead Downloader/<series>/` by default; the extension lets you choose another relative subfolder. Turn off **EPUB only** if you also want the separate chapter files. Browser settings may ask you to allow multiple downloads the first time. Keep the extension tab open while a job runs. The extension uses the browser Downloads API and keeps its data local to the browser.
 
 The extension has required access only to pages and media on `libread.com`, `freewebnovel.com`, and their subdomains. If a cover or chapter image is hosted on another HTTPS domain, it asks you before requesting access to that specific host; it does not request blanket access to all sites. It does not send login cookies or bypass paid/locked access. If a chapter page has no reader article, it is reported as skipped. Only download material you are authorized to access.
 
