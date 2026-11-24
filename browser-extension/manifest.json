@@ -10,8 +10,8 @@
     "storage"
   ],
   "host_permissions": [
-    "https://libread.com/*",
-    "https://*.libread.com/*"
+    "*://*.libread.com/*",
+    "*://*.freewebnovel.com/*"
   ],
   "optional_host_permissions": [
     "https://*/*"

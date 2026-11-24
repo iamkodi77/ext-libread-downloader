@@ -2,7 +2,7 @@ const SITE_ORIGIN = "https://libread.com";
 const CHAPTERS_PER_PAGE = 40;
 const MAX_SERIES_PAGES = 500;
 const MAX_LOG_LINES = 300;
-const LIBREAD_HOST = /(^|\.)libread\.com$/i;
+const SUPPORTED_SITE_HOST = /(^|\.)(?:libread|freewebnovel)\.com$/i;
 const encoder = new TextEncoder();
 
 const $ = (id) => document.getElementById(id);
@@ -238,8 +238,8 @@ async function fetchSeries(input, settings, onStatus) {
     const pageUrl = page === 1
       ? `${SITE_ORIGIN}/libread/${encodeURIComponent(slug)}`
       : `${SITE_ORIGIN}/libread/${encodeURIComponent(slug)}/${page}`;
-    const html = await fetchText(pageUrl, settings);
-    const parsed = parseSeriesPage(html, slug);
+    const pageResponse = await fetchText(pageUrl, settings);
+    const parsed = parseSeriesPage(pageResponse.text, slug, pageResponse.url);
     if (!firstPage) firstPage = parsed;
     if (parsed.chapters.length === 0) break;
 
@@ -275,8 +275,8 @@ function extractSlug(input) {
     } catch {
       throw new Error("That URL is not valid.");
     }
-    if (parsed.protocol !== "https:" || !isLibreadHost(parsed.hostname)) {
-      throw new Error("Use an HTTPS URL from libread.com.");
+    if (parsed.protocol !== "https:" || !isSupportedSiteHost(parsed.hostname)) {
+      throw new Error("Use an HTTPS URL from libread.com or freewebnovel.com.");
     }
     const match = parsed.pathname.match(/\/libread\/([^/]+)/i);
     if (!match) throw new Error("The URL should point to a LibRead series page (/libread/series-slug).");
@@ -300,19 +300,19 @@ function safeDecodeURIComponent(value) {
   }
 }
 
-function parseSeriesPage(html, fallbackSlug) {
+function parseSeriesPage(html, fallbackSlug, baseUrl = SITE_ORIGIN) {
   const documentPage = new DOMParser().parseFromString(html, "text/html");
   const titleElement = documentPage.querySelector("h1.tit");
   const titleMeta = documentPage.querySelector('meta[property="og:title"]');
   const metaTitle = titleMeta?.getAttribute("content")?.split("|")[0]?.split(" - ")[0]?.trim();
   const title = titleElement?.textContent?.trim() || metaTitle || fallbackSlug;
   const author = documentPage.querySelector('meta[property="og:novel:author"]')?.getAttribute("content")?.trim() || "";
-  const cover = findCoverUrl(documentPage);
+  const cover = findCoverUrl(documentPage, baseUrl);
   const chapterLinks = documentPage.querySelectorAll("ul#idData li a[href*='/chapter-']");
   const chapters = [];
 
   for (const link of chapterLinks) {
-    const chapterUrl = normalizeSiteUrl(link.getAttribute("href"), SITE_ORIGIN);
+    const chapterUrl = normalizeSiteUrl(link.getAttribute("href"), baseUrl);
     if (!chapterUrl) continue;
     const path = new URL(chapterUrl).pathname;
     const idMatch = path.match(/\/chapter-(\d+)\/?$/i);
@@ -326,24 +326,24 @@ function parseSeriesPage(html, fallbackSlug) {
   return { title, author, coverUrl: cover, chapters };
 }
 
-function findCoverUrl(documentPage) {
+function findCoverUrl(documentPage, baseUrl = SITE_ORIGIN) {
   const meta = documentPage.querySelector('meta[property="og:image"], meta[name="image"]');
   const candidate = meta?.getAttribute("content")?.trim()
     || documentPage.querySelector("img[data-src]")?.getAttribute("data-src")?.trim();
-  return candidate ? normalizeMediaUrl(candidate, SITE_ORIGIN) : null;
+  return candidate ? normalizeMediaUrl(candidate, baseUrl) : null;
 }
 
 function normalizeSiteUrl(raw, baseUrl) {
   const url = normalizeMediaUrl(raw, baseUrl);
   if (!url) return null;
-  return isLibreadHost(new URL(url).hostname) ? url : null;
+  return isSupportedSiteHost(new URL(url).hostname) ? url : null;
 }
 
 function normalizeMediaUrl(raw, baseUrl) {
   if (!raw) return null;
   try {
     const url = new URL(raw, baseUrl);
-    if (url.protocol === "http:" && isLibreadHost(url.hostname)) url.protocol = "https:";
+    if (url.protocol === "http:" && isSupportedSiteHost(url.hostname)) url.protocol = "https:";
     if (url.protocol !== "https:" || url.username || url.password || url.port) return null;
     return url.href;
   } catch {
@@ -361,8 +361,8 @@ class HostPermissionRequiredError extends Error {
   }
 }
 
-function isLibreadHost(hostname) {
-  return LIBREAD_HOST.test(String(hostname || ""));
+function isSupportedSiteHost(hostname) {
+  return SUPPORTED_SITE_HOST.test(String(hostname || ""));
 }
 
 function isMarkedLocked(link) {
@@ -739,15 +739,15 @@ function normalizeOutputFolder(raw) {
 }
 
 async function fetchChapterContent(chapter, settings, signal) {
-  const html = await fetchText(chapter.url, settings, signal);
-  const parsed = parseChapterHtml(html);
+  const response = await fetchText(chapter.url, settings, signal);
+  const parsed = parseChapterHtml(response.text, response.url);
   if (!parsed) {
     throw new Error("No reader article was found. The chapter may be locked, missing, or require site access.");
   }
   return parsed;
 }
 
-function parseChapterHtml(html) {
+function parseChapterHtml(html, baseUrl = SITE_ORIGIN) {
   const documentPage = new DOMParser().parseFromString(html, "text/html");
   const originalArticle = documentPage.querySelector("div#article");
   if (!originalArticle) return null;
@@ -776,7 +776,7 @@ function parseChapterHtml(html) {
       source = image.getAttribute("srcset").split(",")[0].trim().split(/\s+/)[0];
     }
     if (!source || /^data:/i.test(source.trim())) continue;
-    const imageUrl = normalizeMediaUrl(source.trim(), SITE_ORIGIN);
+    const imageUrl = normalizeMediaUrl(source.trim(), baseUrl);
     if (imageUrl && !imageUrls.includes(imageUrl)) imageUrls.push(imageUrl);
   }
 
@@ -799,14 +799,16 @@ async function fetchText(url, settings, signal = null) {
   const resource = await requestBytes(url, settings, signal);
   const contentType = resource.contentType || "";
   const charset = contentType.match(/charset\s*=\s*["']?([^;"'\s]+)/i)?.[1];
+  let text;
   if (charset) {
     try {
-      return new TextDecoder(charset).decode(resource.bytes);
+      text = new TextDecoder(charset).decode(resource.bytes);
     } catch {
       // Fall back to UTF-8 for unsupported or malformed charset labels.
     }
   }
-  return new TextDecoder("utf-8").decode(resource.bytes);
+  if (text === undefined) text = new TextDecoder("utf-8").decode(resource.bytes);
+  return { text, url: resource.finalUrl || url };
 }
 
 async function requestBytes(url, settings, signal = null, onProgress = null, onRetry = null) {
@@ -819,7 +821,7 @@ async function requestBytes(url, settings, signal = null, onProgress = null, onR
   if (remote.protocol !== "https:" || remote.username || remote.password || remote.port) {
     throw new Error("Only secure HTTPS media URLs are supported.");
   }
-  if (!isLibreadHost(remote.hostname)) {
+  if (!isSupportedSiteHost(remote.hostname)) {
     const pattern = `${remote.origin}/*`;
     let granted = false;
     if (globalThis.chrome?.permissions?.contains) {
@@ -890,13 +892,13 @@ async function requestBytes(url, settings, signal = null, onProgress = null, onR
         offset += chunk.byteLength;
       }
       onProgress?.(loaded, total || loaded);
-      return { bytes, contentType, totalBytes: total || loaded };
+      return { bytes, contentType, totalBytes: total || loaded, finalUrl: response.url || remote.href };
     } catch (error) {
       if (signal?.aborted) throw makeAbortError();
       if (timedOut) {
         lastError = new Error(`Request timed out after ${timeoutSeconds} seconds.`);
       } else if (error instanceof TypeError && /failed to fetch|networkerror/i.test(error.message)) {
-        lastError = new Error(`The browser couldn't reach ${remote.hostname}. Check the extension's site access for libread.com; LibRead may also be blocking extension requests. (${error.message})`);
+        lastError = new Error(`The browser couldn't reach ${remote.hostname}. Check the extension's site access for libread.com and freewebnovel.com; the site may also be blocking extension requests. (${error.message})`);
       } else {
         lastError = error;
       }
